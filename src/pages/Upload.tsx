@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Upload as UploadIcon,
   File,
@@ -14,12 +15,28 @@ import {
   AlertCircle,
   Cloud,
   HardDrive,
-  Zap
+  Zap,
+  Loader2
 } from "lucide-react";
+import { fileApi, File as ApiFile } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
+
+interface FileItem {
+  name: string;
+  size: string;
+  progress: number;
+  status: 'completed' | 'uploading' | 'error' | 'queued';
+  speed: string;
+}
 
 const Upload = () => {
   const [dragActive, setDragActive] = useState(false);
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<ApiFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const { isAuthenticated } = useAuth();
 
   const uploadMethods = [
     {
@@ -96,8 +113,70 @@ const Upload = () => {
     setDragActive(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      // Handle file drop logic here
-      console.log("Files dropped:", e.dataTransfer.files);
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      const newFiles: FileItem[] = droppedFiles.map(file => ({
+        name: file.name,
+        size: formatFileSize(file.size),
+        progress: 0,
+        status: 'queued' as const,
+        speed: ''
+      }));
+      setFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Load uploaded files on component mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadFiles();
+    }
+  }, [isAuthenticated]);
+
+  const loadFiles = async () => {
+    try {
+      const response = await fileApi.getFiles();
+      if (response.success && response.data) {
+        setUploadedFiles(response.data.files);
+      }
+    } catch (error) {
+      console.error('Failed to load files:', error);
+    }
+  };
+
+  const handleFileUpload = async (file: globalThis.File) => {
+    if (!isAuthenticated) {
+      setError('Vui lòng đăng nhập để upload file');
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fileApi.uploadFile(file, (progress) => {
+        // Update progress if needed
+        console.log('Upload progress:', progress);
+      });
+
+      if (response.success && response.data) {
+        setSuccess(`File "${file.name}" đã được upload thành công!`);
+        await loadFiles(); // Reload files list
+      } else {
+        throw new Error(response.message || 'Upload failed');
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Upload failed');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -149,6 +228,21 @@ const Upload = () => {
         </div>
       </div>
 
+      {/* Status Messages */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      
+      {success && (
+        <Alert className="border-green-200 bg-green-50 text-green-800">
+          <Check className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Upload Methods */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {uploadMethods.map((method, index) => (
@@ -176,7 +270,7 @@ const Upload = () => {
           </CardHeader>
           <CardContent>
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer ${
                 dragActive
                   ? "border-primary bg-primary/5"
                   : "border-muted-foreground/25 hover:border-primary/50"
@@ -185,6 +279,22 @@ const Upload = () => {
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
+              onClick={async () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.multiple = true;
+                input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.jpg,.jpeg,.png,.gif';
+                input.onchange = async (e) => {
+                  const target = e.target as HTMLInputElement;
+                  if (target.files && target.files[0]) {
+                    const selectedFiles = Array.from(target.files);
+                    for (const file of selectedFiles) {
+                      await handleFileUpload(file);
+                    }
+                  }
+                };
+                input.click();
+              }}
             >
               <div className="flex flex-col items-center gap-4">
                 <div className="gradient-primary rounded-full p-4">
@@ -197,8 +307,34 @@ const Upload = () => {
                   <p className="text-muted-foreground mb-4">
                     Hoặc nhấn để chọn file từ thiết bị
                   </p>
-                  <Button className="gradient-primary">
-                    Chọn file
+                  <Button 
+                    className="gradient-primary"
+                    disabled={uploading}
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.multiple = true;
+                      input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.jpg,.jpeg,.png,.gif';
+                      input.onchange = async (e) => {
+                        const target = e.target as HTMLInputElement;
+                        if (target.files && target.files[0]) {
+                          const selectedFiles = Array.from(target.files);
+                          for (const file of selectedFiles) {
+                            await handleFileUpload(file);
+                          }
+                        }
+                      };
+                      input.click();
+                    }}
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Đang upload...
+                      </>
+                    ) : (
+                      'Chọn file'
+                    )}
                   </Button>
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -218,7 +354,8 @@ const Upload = () => {
               <Input 
                 id="folder"
                 placeholder="Chọn hoặc nhập tên thư mục..."
-                value="/Documents/Projects"
+                defaultValue="/Documents/Projects"
+                readOnly
               />
             </div>
           </CardContent>
@@ -234,7 +371,7 @@ const Upload = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {uploadQueue.map((file, index) => (
+              {files.length > 0 ? files.map((file, index) => (
                 <div key={index} className={`p-4 rounded-lg border ${getStatusColor(file.status)}`}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
@@ -258,7 +395,13 @@ const Upload = () => {
                          file.status === "uploading" ? "Đang tải" :
                          file.status === "error" ? "Lỗi" : "Chờ"}
                       </Badge>
-                      <Button variant="ghost" size="icon">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => {
+                          setFiles(prev => prev.filter((_, i) => i !== index));
+                        }}
+                      >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
@@ -267,6 +410,42 @@ const Upload = () => {
                     <Progress value={file.progress} className="flex-1" />
                     <span className="text-xs text-muted-foreground w-12">
                       {file.progress}%
+                    </span>
+                  </div>
+                </div>
+              )) : uploadedFiles.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <File className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Chưa có file nào được upload</p>
+                  <p className="text-sm">Kéo thả file hoặc nhấn "Chọn file" để bắt đầu</p>
+                </div>
+              ) : uploadedFiles.map((file, index) => (
+                <div key={index} className="p-4 rounded-lg border border-success/20 bg-success/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <Check className="h-4 w-4 text-success" />
+                      <div>
+                        <p className="font-medium text-sm">{file.original_name}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{formatFileSize(parseInt(file.size))}</span>
+                          <span>•</span>
+                          <span>{new Date(file.uploaded_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-success border-success">
+                        Hoàn thành
+                      </Badge>
+                      <Button variant="ghost" size="icon">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Progress value={100} className="flex-1" />
+                    <span className="text-xs text-muted-foreground w-12">
+                      100%
                     </span>
                   </div>
                 </div>

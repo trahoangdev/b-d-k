@@ -34,7 +34,7 @@ const navigationItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
   
@@ -54,7 +54,7 @@ export function AppSidebar() {
     const inactiveClass = "text-muted-foreground hover:text-foreground hover:bg-accent";
     
     if (collapsed) {
-      return `${baseClass} justify-center w-10 h-10 p-0 ${
+      return `${baseClass} justify-center w-16 h-10 px-2 ${
         active 
           ? `${activeClass} ring-2 ring-primary/20` 
           : `${inactiveClass} hover:bg-accent/50`
@@ -69,14 +69,18 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className={`sidebar-transition ${collapsed ? "w-14" : "w-64"}`} collapsible="icon">
-      <SidebarContent className={collapsed ? "p-2" : "p-4"}>
-        <div className={collapsed ? "mb-4" : "mb-6"}>
-          <div className={`flex items-center gap-2 ${collapsed ? 'justify-center px-1' : 'px-3'}`}>
-            <div className={`gradient-primary rounded-lg ${collapsed ? 'p-1.5' : 'p-2'}`}>
-              <Database className={`${collapsed ? 'h-5 w-5' : 'h-6 w-6'} text-primary-foreground`} />
+    <Sidebar 
+      className={`sidebar-transition ${collapsed && !isMobile ? "w-20" : "w-64"}`} 
+      collapsible="icon"
+      data-state={state}
+    >
+      <SidebarContent className={collapsed && !isMobile ? "p-3" : "p-4"}>
+        <div className={collapsed && !isMobile ? "mb-4" : "mb-6"}>
+          <div className={`flex items-center gap-2 ${collapsed && !isMobile ? 'justify-center px-2' : 'px-3'}`}>
+            <div className={`gradient-primary rounded-lg ${collapsed && !isMobile ? 'p-2' : 'p-2'}`}>
+              <Database className={`${collapsed && !isMobile ? 'h-6 w-6' : 'h-6 w-6'} text-primary-foreground`} />
             </div>
-            {!collapsed && (
+            {(!collapsed || isMobile) && (
               <div>
                 <h1 className="text-xl font-bold text-foreground">Big Data Keeper</h1>
                 <p className="text-xs text-muted-foreground">Data Platform</p>
@@ -87,13 +91,13 @@ export function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground mb-2">
-            {!collapsed && "NAVIGATION"}
+            {(!collapsed || isMobile) && "NAVIGATION"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className={collapsed ? "space-y-2" : "space-y-1"}>
+            <SidebarMenu className={collapsed && !isMobile ? "space-y-2" : "space-y-1"}>
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  {collapsed ? (
+                  {collapsed && !isMobile ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <SidebarMenuButton asChild>
@@ -120,7 +124,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {!collapsed && (
+        {(!collapsed || isMobile) && (
           <div className="mt-auto pt-6">
             <div className="card-modern p-4">
               <h3 className="font-semibold text-sm mb-2">Dung lượng</h3>

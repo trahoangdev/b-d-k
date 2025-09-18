@@ -1,5 +1,12 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/contexts/AuthContext";
+import { fileApi, authApi, File as ApiFile } from "@/services/api";
 import { 
   Upload, 
   Database, 
@@ -9,71 +16,141 @@ import {
   HardDrive,
   Clock,
   Shield,
-  Plus
+  Plus,
+  AlertCircle,
+  Loader2,
+  File,
+  Download,
+  Share2,
+  Eye
 } from "lucide-react";
 
+interface DashboardStats {
+  totalFiles: number;
+  totalSize: number;
+  recentFiles: ApiFile[];
+  userStats: {
+    fileCount: number;
+    folderCount: number;
+    totalSize: number;
+  };
+}
+
 const Dashboard = () => {
-  const stats = [
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadDashboardData();
+    }
+  }, [isAuthenticated]);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const [profileResponse, filesResponse] = await Promise.all([
+        authApi.getProfile(),
+        fileApi.getFiles()
+      ]);
+
+      if (profileResponse.success && filesResponse.success) {
+        const userStats = { fileCount: 0, folderCount: 0, totalSize: 0 };
+        const files = filesResponse.data?.files || [];
+        
+        setStats({
+          totalFiles: files.length,
+          totalSize: userStats.totalSize,
+          recentFiles: files.slice(0, 5),
+          userStats
+        });
+      }
+    } catch (error) {
+      setError('Không thể tải dữ liệu dashboard');
+      console.error('Dashboard error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Vừa xong';
+    if (diffInMinutes < 60) return `${diffInMinutes} phút trước`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} giờ trước`;
+    return `${Math.floor(diffInMinutes / 1440)} ngày trước`;
+  };
+
+  const dashboardStats = [
     {
       title: "Tổng dung lượng",
-      value: "2.4 TB",
+      value: stats ? formatFileSize(stats.totalSize) : "0 Bytes",
       change: "+12%",
       icon: HardDrive,
       trend: "up"
     },
     {
       title: "Tổng file",
-      value: "1,234,567",
+      value: stats ? stats.totalFiles.toLocaleString() : "0",
       change: "+8%",
       icon: Database,
       trend: "up"
     },
     {
-      title: "Người dùng hoạt động",
-      value: "892",
-      change: "+23%",
+      title: "Thư mục",
+      value: stats ? stats.userStats.folderCount.toLocaleString() : "0",
+      change: "+5%",
       icon: Users,
       trend: "up"
     },
     {
       title: "Lần truy cập cuối",
-      value: "2 phút trước",
+      value: "Vừa xong",
       change: "Real-time",
       icon: Clock,
       trend: "neutral"
     }
   ];
 
-  const recentActivities = [
-    {
-      user: "Nguyễn Văn A",
-      action: "đã tải lên",
-      target: "dataset-2024-Q1.csv",
-      time: "5 phút trước",
-      type: "upload"
-    },
-    {
-      user: "Lê Thị B",
-      action: "đã truy cập",
-      target: "Analytics Dashboard",
-      time: "12 phút trước",
-      type: "access"
-    },
-    {
-      user: "Trần Văn C",
-      action: "đã xóa",
-      target: "old-backup.zip",
-      time: "1 giờ trước",
-      type: "delete"
-    },
-    {
-      user: "Phạm Thị D",
-      action: "đã chia sẻ",
-      target: "financial-report.pdf",
-      time: "2 giờ trước",
-      type: "share"
-    }
-  ];
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Đang tải dữ liệu...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 space-y-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -86,11 +163,18 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button className="gradient-primary hover-glow">
+          <Button 
+            className="gradient-primary hover-glow"
+            onClick={() => navigate('/explorer')}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Tạo mới
           </Button>
-          <Button variant="outline" className="hover-glow">
+          <Button 
+            variant="outline" 
+            className="hover-glow"
+            onClick={() => navigate('/upload')}
+          >
             <Upload className="h-4 w-4 mr-2" />
             Tải lên
           </Button>
@@ -99,7 +183,7 @@ const Dashboard = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
+        {dashboardStats.map((stat, index) => (
           <Card key={index} className="card-modern hover-glow">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -183,19 +267,34 @@ const Dashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button className="w-full justify-start gradient-primary hover-glow">
+            <Button 
+              className="w-full justify-start gradient-primary hover-glow"
+              onClick={() => navigate('/upload')}
+            >
               <Upload className="h-4 w-4 mr-2" />
               Tải lên file
             </Button>
-            <Button variant="outline" className="w-full justify-start hover-glow">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start hover-glow"
+              onClick={() => navigate('/explorer')}
+            >
               <Database className="h-4 w-4 mr-2" />
               Tạo thư mục
             </Button>
-            <Button variant="outline" className="w-full justify-start hover-glow">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start hover-glow"
+              onClick={() => navigate('/users')}
+            >
               <Users className="h-4 w-4 mr-2" />
               Mời người dùng
             </Button>
-            <Button variant="outline" className="w-full justify-start hover-glow">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start hover-glow"
+              onClick={() => navigate('/settings')}
+            >
               <Shield className="h-4 w-4 mr-2" />
               Cài đặt bảo mật
             </Button>
@@ -203,31 +302,49 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Recent Activities */}
+      {/* Recent Files */}
       <Card className="card-modern">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Hoạt động gần đây
+            File gần đây
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {recentActivities.map((activity, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-primary"></div>
-                  <div>
-                    <p className="text-sm">
-                      <span className="font-medium">{activity.user}</span>
-                      <span className="text-muted-foreground"> {activity.action} </span>
-                      <span className="font-medium">{activity.target}</span>
-                    </p>
+            {stats && stats.recentFiles.length > 0 ? (
+              stats.recentFiles.map((file, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <File className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">{file.original_name}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{formatFileSize(parseInt(file.size))}</span>
+                        <span>•</span>
+                        <span>{file.mime_type}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{formatDate(file.uploaded_at)}</span>
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => fileApi.downloadFile(file.id)}
+                    >
+                      <Download className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
-                <span className="text-xs text-muted-foreground">{activity.time}</span>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <File className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Chưa có file nào</p>
+                <p className="text-sm">Tải lên file đầu tiên để bắt đầu</p>
               </div>
-            ))}
+            )}
           </div>
         </CardContent>
       </Card>

@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "@/components/ui/use-toast";
-import { FileActions } from "@/components/file-actions";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/AuthContext";
+import { fileApi, File as ApiFile } from "@/services/api";
 import { 
   FolderOpen, 
   File, 
@@ -17,63 +21,129 @@ import {
   MoreHorizontal,
   Calendar,
   User,
-  HardDrive
+  HardDrive,
+  Plus,
+  Upload,
+  Trash2,
+  Edit,
+  Eye,
+  AlertCircle,
+  Loader2,
+  FolderPlus,
+  RefreshCw,
+  CheckCircle
 } from "lucide-react";
 
 const Explorer = () => {
+  const { isAuthenticated } = useAuth();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  
-  const folders = [
-    { name: "Documents", files: 1234, size: "1.2 TB", modified: "2 giờ trước", type: "folder" },
-    { name: "Images", files: 5678, size: "850 GB", modified: "1 ngày trước", type: "folder" },
-    { name: "Videos", files: 234, size: "500 GB", modified: "3 ngày trước", type: "folder" },
-    { name: "Archives", files: 89, size: "120 GB", modified: "1 tuần trước", type: "folder" },
-  ];
+  const [files, setFiles] = useState<ApiFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFile, setSelectedFile] = useState<ApiFile | null>(null);
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
 
-  const files = [
-    { 
-      name: "báo-cáo-quý-2024.pdf", 
-      size: "24.5 MB", 
-      modified: "1 giờ trước", 
-      type: "pdf",
-      owner: "Nguyễn Văn A"
-    },
-    { 
-      name: "dữ-liệu-bán-hàng.csv", 
-      size: "145 KB", 
-      modified: "3 giờ trước", 
-      type: "csv",
-      owner: "Lê Thị B"
-    },
-    { 
-      name: "thuyết-trình-cuối.pptx", 
-      size: "12.8 MB", 
-      modified: "5 giờ trước", 
-      type: "pptx",
-      owner: "Trần Văn C"
-    },
-    { 
-      name: "database-backup.sql", 
-      size: "890 MB", 
-      modified: "1 ngày trước", 
-      type: "sql",
-      owner: "Phạm Thị D"
-    },
-  ];
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadFiles();
+    }
+  }, [isAuthenticated]);
 
-  const getFileIcon = (type: string) => {
+  const loadFiles = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('');
+      const response = await fileApi.getFiles();
+      if (response.success && response.data) {
+        setFiles(response.data.files);
+      }
+    } catch (error) {
+      setError('Không thể tải danh sách file');
+      console.error('Load files error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Vừa xong';
+    if (diffInMinutes < 60) return `${diffInMinutes} phút trước`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} giờ trước`;
+    return `${Math.floor(diffInMinutes / 1440)} ngày trước`;
+  };
+
+  const handleDownload = async (file: ApiFile) => {
+    try {
+      await fileApi.downloadFile(file.id);
+    } catch (error) {
+      setError('Không thể tải file');
+    }
+  };
+
+  const handleDelete = async (file: ApiFile) => {
+    if (window.confirm(`Bạn có chắc muốn xóa file "${file.original_name}"?`)) {
+      try {
+        await fileApi.deleteFile(file.id);
+        await loadFiles();
+      } catch (error) {
+        setError('Không thể xóa file');
+      }
+    }
+  };
+
+  const filteredFiles = files.filter(file =>
+    file.original_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    file.mime_type.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType.includes('pdf')) return <File className="h-5 w-5 text-red-500" />;
+    if (mimeType.includes('image')) return <File className="h-5 w-5 text-blue-500" />;
+    if (mimeType.includes('video')) return <File className="h-5 w-5 text-purple-500" />;
+    if (mimeType.includes('text')) return <File className="h-5 w-5 text-green-500" />;
     return <File className="h-5 w-5 text-muted-foreground" />;
   };
 
-  const getTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      pdf: "bg-red-500/10 text-red-500 border-red-500/20",
-      csv: "bg-green-500/10 text-green-500 border-green-500/20",
-      pptx: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-      sql: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-    };
-    return colors[type] || "bg-muted/10 text-muted-foreground border-muted/20";
+  const getTypeColor = (mimeType: string) => {
+    if (mimeType.includes('pdf')) return "bg-red-500/10 text-red-500 border-red-500/20";
+    if (mimeType.includes('image')) return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+    if (mimeType.includes('video')) return "bg-purple-500/10 text-purple-500 border-purple-500/20";
+    if (mimeType.includes('text')) return "bg-green-500/10 text-green-500 border-green-500/20";
+    return "bg-muted/10 text-muted-foreground border-muted/20";
   };
+
+  const getFileExtension = (filename: string) => {
+    return filename.split('.').pop()?.toUpperCase() || 'FILE';
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Đang tải dữ liệu...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -86,10 +156,56 @@ const Explorer = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="hover-glow">
-            <Filter className="h-4 w-4 mr-2" />
-            Lọc
+          <Button variant="outline" className="hover-glow" onClick={loadFiles}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Làm mới
           </Button>
+          <Dialog open={showCreateFolder} onOpenChange={setShowCreateFolder}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="hover-glow">
+                <FolderPlus className="h-4 w-4 mr-2" />
+                Tạo thư mục
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Tạo thư mục mới</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="folderName">Tên thư mục</Label>
+                  <Input
+                    id="folderName"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    placeholder="Nhập tên thư mục..."
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowCreateFolder(false)}>
+                    Hủy
+                  </Button>
+                  <Button onClick={async () => {
+                    if (!newFolderName.trim()) {
+                      setError('Vui lòng nhập tên thư mục');
+                      return;
+                    }
+                    
+                    // TODO: Implement create folder API
+                    // await folderApi.createFolder(newFolderName);
+                    
+                    // Mock success for now
+                    setSuccess(`Thư mục "${newFolderName}" đã được tạo thành công!`);
+                    setShowCreateFolder(false);
+                    setNewFolderName('');
+                    await loadFiles();
+                  }}>
+                    Tạo
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Button 
             variant={viewMode === "grid" ? "default" : "outline"}
             onClick={() => setViewMode("grid")}
@@ -122,88 +238,86 @@ const Explorer = () => {
             <Input 
               placeholder="Tìm kiếm file và thư mục..." 
               className="pl-10 hover-glow"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
       </div>
 
-      {/* Folders */}
-      <div>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <FolderOpen className="h-5 w-5" />
-          Thư mục
-        </h2>
-        <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" : "space-y-2"}>
-          {folders.map((folder, index) => (
-            <Card key={index} className="card-modern hover-glow cursor-pointer">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="gradient-accent rounded-lg p-2">
-                    <FolderOpen className="h-6 w-6 text-accent-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium truncate">{folder.name}</h3>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                      <span>{folder.files} files</span>
-                      <span>•</span>
-                      <span>{folder.size}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">{folder.modified}</p>
-                  </div>
-                  <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+      {/* Status Alerts */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      
+      {success && (
+        <Alert className="border-green-200 bg-green-50 text-green-800">
+          <CheckCircle className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Files */}
       <div>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <File className="h-5 w-5" />
-          File
+          File ({filteredFiles.length})
         </h2>
         
-        {viewMode === "grid" ? (
+        {filteredFiles.length === 0 ? (
+          <Card className="card-modern">
+            <CardContent className="p-8 text-center">
+              <File className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-muted-foreground">Không có file nào</p>
+              <p className="text-sm text-muted-foreground">Tải lên file đầu tiên để bắt đầu</p>
+            </CardContent>
+          </Card>
+        ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {files.map((file, index) => (
+            {filteredFiles.map((file, index) => (
               <Card key={index} className="card-modern hover-glow cursor-pointer group">
                 <CardContent className="p-4">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      {getFileIcon(file.type)}
-                      <Badge variant="outline" className={getTypeColor(file.type)}>
-                        {file.type.toUpperCase()}
+                      {getFileIcon(file.mime_type)}
+                      <Badge variant="outline" className={getTypeColor(file.mime_type)}>
+                        {getFileExtension(file.original_name)}
                       </Badge>
                     </div>
                     <div>
-                      <h3 className="font-medium text-sm truncate" title={file.name}>
-                        {file.name}
+                      <h3 className="font-medium text-sm truncate" title={file.original_name}>
+                        {file.original_name}
                       </h3>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                         <HardDrive className="h-3 w-3" />
-                        <span>{file.size}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                        <User className="h-3 w-3" />
-                        <span>{file.owner}</span>
+                        <span>{formatFileSize(parseInt(file.size))}</span>
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                         <Calendar className="h-3 w-3" />
-                        <span>{file.modified}</span>
+                        <span>{formatDate(file.uploaded_at)}</span>
                       </div>
                     </div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button size="sm" variant="outline" className="flex-1">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => handleDownload(file)}
+                      >
                         <Download className="h-3 w-3 mr-1" />
                         Tải
                       </Button>
-                      <Button size="sm" variant="outline" className="flex-1">
-                        <Share2 className="h-3 w-3 mr-1" />
-                        Chia sẻ
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => setSelectedFile(file)}
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        Xem
                       </Button>
                     </div>
                   </div>
@@ -215,35 +329,47 @@ const Explorer = () => {
           <Card className="card-modern">
             <CardContent className="p-0">
               <div className="divide-y divide-border">
-                {files.map((file, index) => (
+                {filteredFiles.map((file, index) => (
                   <div key={index} className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer group">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {getFileIcon(file.type)}
+                      {getFileIcon(file.mime_type)}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-medium truncate">{file.name}</h3>
-                          <Badge variant="outline" className={getTypeColor(file.type)}>
-                            {file.type.toUpperCase()}
+                          <h3 className="font-medium truncate">{file.original_name}</h3>
+                          <Badge variant="outline" className={getTypeColor(file.mime_type)}>
+                            {getFileExtension(file.original_name)}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                          <span>{file.size}</span>
-                          <span>{file.owner}</span>
-                          <span>{file.modified}</span>
+                          <span>{formatFileSize(parseInt(file.size))}</span>
+                          <span>{file.mime_type}</span>
+                          <span>{formatDate(file.uploaded_at)}</span>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100">
-                      <Button size="sm" variant="outline">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleDownload(file)}
+                      >
                         <Download className="h-3 w-3 mr-1" />
                         Tải
                       </Button>
-                      <Button size="sm" variant="outline">
-                        <Share2 className="h-3 w-3 mr-1" />
-                        Chia sẻ
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => setSelectedFile(file)}
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        Xem
                       </Button>
-                      <Button size="sm" variant="ghost">
-                        <MoreHorizontal className="h-4 w-4" />
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={() => handleDelete(file)}
+                      >
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>

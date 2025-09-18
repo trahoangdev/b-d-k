@@ -174,14 +174,48 @@ All colors MUST be HSL.
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
+  /* Mobile sidebar fixes */
+  @media (max-width: 768px) {
+    [data-sidebar="sidebar"] {
+      @apply w-64;
+    }
+    
+    [data-sidebar="content"] {
+      @apply p-4;
+    }
+    
+    [data-sidebar="menu-button"] {
+      @apply w-full justify-start px-3 py-2;
+    }
+    
+    [data-sidebar="menu"] {
+      @apply space-y-1;
+    }
+    
+    /* Ensure mobile sidebar is always full width */
+    [data-state="collapsed"][data-sidebar="sidebar"] {
+      @apply w-64;
+    }
+    
+    /* Mobile menu items should show text */
+    [data-state="collapsed"][data-sidebar="menu-button"] {
+      @apply justify-start w-full px-3 py-2;
+    }
+    
+    /* Mobile logo should show text */
+    [data-state="collapsed"][data-sidebar="content"] > div:first-child {
+      @apply mb-6;
+    }
+  }
+  
   /* Collapsed sidebar styling */
   [data-state="collapsed"] [data-sidebar="menu-button"] {
-    @apply justify-center w-10 h-10 p-0;
+    @apply justify-center w-16 h-10 px-2;
   }
   
   /* Better spacing for collapsed sidebar */
   [data-state="collapsed"] [data-sidebar="menu"] {
-    @apply space-y-2;
+    @apply space-y-3;
   }
   
   /* Icon centering for collapsed state */
@@ -206,7 +240,7 @@ All colors MUST be HSL.
   
   /* Sidebar content padding adjustments */
   [data-state="collapsed"] [data-sidebar="content"] {
-    @apply px-2;
+    @apply px-3;
   }
   
   /* Logo adjustments for collapsed state */
@@ -231,7 +265,7 @@ All colors MUST be HSL.
   
   /* Ensure proper spacing between collapsed items */
   [data-state="collapsed"] [data-sidebar="menu"] > * + * {
-    @apply mt-2;
+    @apply mt-3;
   }
   
   /* Smooth transitions for all sidebar elements */
