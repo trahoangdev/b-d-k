@@ -1,0 +1,246 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Light theme (default) */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+
+    --primary: 263 88% 65%;
+    --primary-foreground: 0 0% 98%;
+    --primary-glow: 263 70% 80%;
+
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 263 88% 65%;
+
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --info: 199 89% 48%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-secondary: linear-gradient(135deg, hsl(240 4.8% 95.9%), hsl(240 5% 90%));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(240 5% 90%));
+
+    --shadow-elegant: 0 10px 30px -10px hsl(var(--primary) / 0.15);
+    --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.2);
+
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark theme */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 263 88% 65%;
+    --primary-foreground: 0 0% 98%;
+    --primary-glow: 263 70% 80%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 263 88% 65%;
+
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --info: 199 89% 48%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-secondary: linear-gradient(135deg, hsl(240 3.7% 15.9%), hsl(240 5% 26%));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(240 5% 26%));
+
+    --shadow-elegant: 0 10px 30px -10px hsl(var(--primary) / 0.3);
+    --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.4);
+
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Smooth theme transitions */
+  * {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  }
+}
+
+@layer components {
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-secondary {
+    background: var(--gradient-secondary);
+  }
+  
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+  
+  .shadow-elegant {
+    box-shadow: var(--shadow-elegant);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  
+  .hover-glow {
+    @apply transition-smooth hover:shadow-glow;
+  }
+  
+  .card-modern {
+    @apply bg-card border border-border rounded-lg p-6 shadow-elegant transition-smooth hover:shadow-glow;
+  }
+  
+  /* Sidebar improvements */
+  .sidebar-transition {
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Collapsed sidebar styling */
+  [data-state="collapsed"] [data-sidebar="menu-button"] {
+    @apply justify-center w-10 h-10 p-0;
+  }
+  
+  /* Better spacing for collapsed sidebar */
+  [data-state="collapsed"] [data-sidebar="menu"] {
+    @apply space-y-2;
+  }
+  
+  /* Icon centering for collapsed state */
+  [data-state="collapsed"] [data-sidebar="menu-button"] {
+    @apply flex items-center justify-center;
+  }
+  
+  /* Active state for collapsed sidebar */
+  [data-state="collapsed"] [data-sidebar="menu-button"][data-active="true"] {
+    @apply bg-primary text-primary-foreground ring-2 ring-primary/20;
+  }
+  
+  /* Hover effects for collapsed sidebar */
+  [data-state="collapsed"] [data-sidebar="menu-button"]:hover {
+    @apply bg-accent/50;
+  }
+  
+  /* Ensure proper icon visibility */
+  [data-state="collapsed"] [data-sidebar="menu-button"] svg {
+    @apply h-5 w-5;
+  }
+  
+  /* Sidebar content padding adjustments */
+  [data-state="collapsed"] [data-sidebar="content"] {
+    @apply px-2;
+  }
+  
+  /* Logo adjustments for collapsed state */
+  [data-state="collapsed"] [data-sidebar="content"] > div:first-child {
+    @apply mb-4;
+  }
+  
+  /* Ensure icons are fully visible and centered */
+  [data-state="collapsed"] [data-sidebar="menu-item"] {
+    @apply flex justify-center;
+  }
+  
+  /* Fix any overflow issues */
+  [data-state="collapsed"] [data-sidebar="menu-button"] {
+    @apply overflow-visible;
+  }
+  
+  /* Better icon positioning */
+  [data-state="collapsed"] [data-sidebar="menu-button"] svg {
+    @apply flex-shrink-0;
+  }
+  
+  /* Ensure proper spacing between collapsed items */
+  [data-state="collapsed"] [data-sidebar="menu"] > * + * {
+    @apply mt-2;
+  }
+  
+  /* Smooth transitions for all sidebar elements */
+  [data-sidebar="menu-button"] {
+    @apply transition-all duration-200 ease-in-out;
+  }
+  
+  /* Better focus states */
+  [data-sidebar="menu-button"]:focus-visible {
+    @apply ring-2 ring-primary/50 outline-none;
+  }
+}
