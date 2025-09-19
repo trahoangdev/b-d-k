@@ -7,8 +7,10 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { authApi } from "@/services/api";
+import { authApi, fileApi } from "@/services/api";
+import { useNavigate } from "react-router-dom";
 import { 
   Settings as SettingsIcon,
   User,
@@ -31,11 +33,16 @@ import {
 } from "lucide-react";
 
 const Settings = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [showCleanupDialog, setShowCleanupDialog] = useState(false);
+  const [showLockAccountDialog, setShowLockAccountDialog] = useState(false);
+  const [showDeleteDataDialog, setShowDeleteDataDialog] = useState(false);
   const [profile, setProfile] = useState({
     firstName: '',
     lastName: '',
@@ -62,9 +69,17 @@ const Settings = () => {
     { id: "weekly-report", label: "Báo cáo tuần", description: "Tóm tắt hoạt động hàng tuần", enabled: true }
   ]);
 
+  const [storageStats, setStorageStats] = useState({
+    totalFiles: 0,
+    totalFolders: 0,
+    totalSize: '0',
+    storageByType: [] as { type: string; count: number; size: string }[]
+  });
+
   useEffect(() => {
     if (isAuthenticated && user) {
       loadProfile();
+      loadStorageStats();
     }
   }, [isAuthenticated, user]);
 
@@ -76,8 +91,8 @@ const Settings = () => {
       if (response.success && response.data?.user) {
         const userData = response.data.user;
         setProfile({
-          firstName: userData.first_name || '',
-          lastName: userData.last_name || '',
+          firstName: userData.firstName || '',
+          lastName: userData.lastName || '',
           email: userData.email || '',
           phone: ''
         });
@@ -90,26 +105,33 @@ const Settings = () => {
     }
   };
 
+  const loadStorageStats = async () => {
+    try {
+      const response = await fileApi.getStorageStats();
+      if (response.success && response.data) {
+        setStorageStats(response.data);
+      }
+    } catch (error) {
+      console.error('Load storage stats error:', error);
+    }
+  };
+
   const handleSaveProfile = async () => {
     try {
       setSaving(true);
       setError('');
       setSuccess('');
       
-      // TODO: Implement updateProfile API
-      // const response = await authApi.updateProfile({
-      //   firstName: profile.firstName,
-      //   lastName: profile.lastName,
-      //   avatar: null
-      // });
-      
-      // Mock response for now
-      const response = { success: true };
+      const response = await authApi.updateProfile({
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        phone: profile.phone
+      });
       
       if (response.success) {
         setSuccess('Cập nhật profile thành công');
       } else {
-        setError('Không thể cập nhật profile');
+        setError(response.message || 'Không thể cập nhật profile');
       }
     } catch (error) {
       setError('Không thể cập nhật profile');
@@ -125,19 +147,27 @@ const Settings = () => {
       return;
     }
     
+    if (password.new.length < 6) {
+      setError('Mật khẩu mới phải có ít nhất 6 ký tự');
+      return;
+    }
+    
     try {
       setSaving(true);
       setError('');
       setSuccess('');
       
-      // TODO: Implement change password API
-      // const response = await authApi.changePassword({
-      //   currentPassword: password.current,
-      //   newPassword: password.new
-      // });
+      const response = await authApi.changePassword({
+        currentPassword: password.current,
+        newPassword: password.new
+      });
       
-      setSuccess('Đổi mật khẩu thành công');
-      setPassword({ current: '', new: '', confirm: '' });
+      if (response.success) {
+        setSuccess('Đổi mật khẩu thành công');
+        setPassword({ current: '', new: '', confirm: '' });
+      } else {
+        setError(response.message || 'Không thể đổi mật khẩu');
+      }
     } catch (error) {
       setError('Không thể đổi mật khẩu');
       console.error('Change password error:', error);
@@ -162,10 +192,57 @@ const Settings = () => {
     );
   };
 
+  // Button handlers
+  const handleUpgradePackage = () => {
+    setShowUpgradeDialog(true);
+  };
+
+  const handleCleanupFiles = () => {
+    setShowCleanupDialog(true);
+  };
+
+  const handleManageUsers = () => {
+    navigate('/users');
+  };
+
+  const handleDomainSettings = () => {
+    setSuccess('Chức năng cài đặt miền sẽ được phát triển trong phiên bản tiếp theo');
+  };
+
+  const handleMobileApp = () => {
+    setSuccess('Ứng dụng di động sẽ được phát triển trong phiên bản tiếp theo');
+  };
+
+  const handleEmailConfig = () => {
+    setSuccess('Cấu hình email sẽ được phát triển trong phiên bản tiếp theo');
+  };
+
+  const handleLockAccount = () => {
+    setShowLockAccountDialog(true);
+  };
+
+  const handleDeleteAllData = () => {
+    setShowDeleteDataDialog(true);
+  };
+
+  const handleChangeAvatar = () => {
+    setSuccess('Chức năng thay đổi avatar sẽ được phát triển trong phiên bản tiếp theo');
+  };
+
+  // Format bytes to human readable format
+  const formatBytes = (bytes: string) => {
+    const size = parseInt(bytes);
+    if (size === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(size) / Math.log(k));
+    return parseFloat((size / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   const storageUsage = {
-    used: 2.4,
-    total: 4.0,
-    percentage: 60
+    used: parseFloat(storageStats.totalSize) / (1024 * 1024 * 1024), // Convert to GB
+    total: 4.0, // 4GB limit
+    percentage: Math.min((parseFloat(storageStats.totalSize) / (4 * 1024 * 1024 * 1024)) * 100, 100)
   };
 
   if (loading) {
@@ -192,7 +269,10 @@ const Settings = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="hover-glow" onClick={loadProfile}>
+          <Button variant="outline" className="hover-glow" onClick={() => {
+            loadProfile();
+            loadStorageStats();
+          }}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Làm mới
           </Button>
@@ -257,7 +337,7 @@ const Settings = () => {
                   <User className="h-8 w-8 text-primary-foreground" />
                 </div>
                 <div className="flex-1">
-                  <Button variant="outline" className="hover-glow">
+                  <Button variant="outline" className="hover-glow" onClick={handleChangeAvatar}>
                     Thay đổi ảnh
                   </Button>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -470,29 +550,140 @@ const Settings = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <HardDrive className="h-5 w-5" />
-                Dung lượng
+                Dung lượng lưu trữ
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold">
-                  {storageUsage.used} TB
+              {/* Main Storage Display */}
+              <div className="text-center space-y-2">
+                <div className="text-3xl font-bold text-primary">
+                  {formatBytes(storageStats.totalSize)}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  của {storageUsage.total} TB
+                  đã sử dụng của {storageUsage.total} GB
                 </p>
+                <div className="text-xs text-muted-foreground">
+                  {storageUsage.percentage.toFixed(1)}% đã sử dụng
+                </div>
               </div>
               
-              <div className="w-full bg-muted rounded-full h-3">
-                <div 
-                  className="gradient-primary h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${storageUsage.percentage}%` }}
-                ></div>
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <div className="w-full bg-muted rounded-full h-4 relative overflow-hidden">
+                  <div 
+                    className={`h-4 rounded-full transition-all duration-700 ${
+                      storageUsage.percentage > 90 
+                        ? 'bg-gradient-to-r from-red-500 to-red-600' 
+                        : storageUsage.percentage > 70 
+                        ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
+                        : 'gradient-primary'
+                    }`}
+                    style={{ width: `${Math.min(storageUsage.percentage, 100)}%` }}
+                  ></div>
+                  {storageUsage.percentage > 90 && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xs font-medium text-white">⚠️</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>0 GB</span>
+                  <span>{storageUsage.total} GB</span>
+                </div>
               </div>
               
-              <div className="text-center">
-                <Button className="w-full gradient-primary hover-glow">
+              {/* File & Folder Counts */}
+              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-primary">
+                    {storageStats.totalFiles}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Files</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-primary">
+                    {storageStats.totalFolders}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Folders</div>
+                </div>
+              </div>
+              
+              {/* Storage by Type */}
+              {storageStats.storageByType.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Theo loại file</h4>
+                    <Badge variant="outline" className="text-xs">
+                      {storageStats.storageByType.length} loại
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {storageStats.storageByType
+                      .sort((a, b) => parseInt(b.size) - parseInt(a.size))
+                      .map((item, index) => {
+                        const itemPercentage = (parseInt(item.size) / parseInt(storageStats.totalSize)) * 100;
+                        return (
+                          <div key={index} className="space-y-1">
+                            <div className="flex justify-between items-center text-xs">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  item.type === 'Images' ? 'bg-blue-500' :
+                                  item.type === 'Videos' ? 'bg-red-500' :
+                                  item.type === 'Documents' ? 'bg-green-500' :
+                                  item.type === 'Audio' ? 'bg-purple-500' :
+                                  item.type === 'Archives' ? 'bg-orange-500' :
+                                  'bg-gray-500'
+                                }`}></div>
+                                <span className="font-medium">{item.type}</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-medium">{formatBytes(item.size)}</div>
+                                <div className="text-muted-foreground">{item.count} files</div>
+                              </div>
+                            </div>
+                            <div className="w-full bg-muted rounded-full h-1">
+                              <div 
+                                className={`h-1 rounded-full transition-all duration-500 ${
+                                  item.type === 'Images' ? 'bg-blue-500' :
+                                  item.type === 'Videos' ? 'bg-red-500' :
+                                  item.type === 'Documents' ? 'bg-green-500' :
+                                  item.type === 'Audio' ? 'bg-purple-500' :
+                                  item.type === 'Archives' ? 'bg-orange-500' :
+                                  'bg-gray-500'
+                                }`}
+                                style={{ width: `${itemPercentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Storage Warning */}
+              {storageUsage.percentage > 80 && (
+                <Alert className="border-orange-200 bg-orange-50 text-orange-800">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    {storageUsage.percentage > 90 
+                      ? 'Dung lượng gần đầy! Hãy xóa file không cần thiết hoặc nâng cấp gói.'
+                      : 'Dung lượng đã sử dụng cao. Hãy cân nhắc dọn dẹp file.'
+                    }
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                <Button className="w-full gradient-primary hover-glow" onClick={handleUpgradePackage}>
+                  <HardDrive className="h-4 w-4 mr-2" />
                   Nâng cấp gói
+                </Button>
+                <Button variant="outline" className="w-full hover-glow" onClick={handleCleanupFiles}>
+                  <Database className="h-4 w-4 mr-2" />
+                  Dọn dẹp file
                 </Button>
               </div>
             </CardContent>
@@ -507,19 +698,19 @@ const Settings = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start hover-glow">
+              <Button variant="outline" className="w-full justify-start hover-glow" onClick={handleManageUsers}>
                 <Users className="h-4 w-4 mr-2" />
                 Quản lý người dùng
               </Button>
-              <Button variant="outline" className="w-full justify-start hover-glow">
+              <Button variant="outline" className="w-full justify-start hover-glow" onClick={handleDomainSettings}>
                 <Globe className="h-4 w-4 mr-2" />
                 Cài đặt miền
               </Button>
-              <Button variant="outline" className="w-full justify-start hover-glow">
+              <Button variant="outline" className="w-full justify-start hover-glow" onClick={handleMobileApp}>
                 <Smartphone className="h-4 w-4 mr-2" />
                 Ứng dụng di động
               </Button>
-              <Button variant="outline" className="w-full justify-start hover-glow">
+              <Button variant="outline" className="w-full justify-start hover-glow" onClick={handleEmailConfig}>
                 <Mail className="h-4 w-4 mr-2" />
                 Cấu hình email
               </Button>
@@ -535,11 +726,11 @@ const Settings = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start text-destructive border-destructive/20 hover:bg-destructive/10">
+              <Button variant="outline" className="w-full justify-start text-destructive border-destructive/20 hover:bg-destructive/10" onClick={handleLockAccount}>
                 <Lock className="h-4 w-4 mr-2" />
                 Khóa tài khoản
               </Button>
-              <Button variant="outline" className="w-full justify-start text-destructive border-destructive/20 hover:bg-destructive/10">
+              <Button variant="outline" className="w-full justify-start text-destructive border-destructive/20 hover:bg-destructive/10" onClick={handleDeleteAllData}>
                 <Database className="h-4 w-4 mr-2" />
                 Xóa tất cả dữ liệu
               </Button>
@@ -547,6 +738,199 @@ const Settings = () => {
           </Card>
         </div>
       </div>
+
+      {/* Upgrade Package Dialog */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5" />
+              Nâng cấp gói lưu trữ
+            </DialogTitle>
+            <DialogDescription>
+              Nâng cấp gói để có thêm dung lượng lưu trữ và tính năng cao cấp.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4">
+              <div className="border rounded-lg p-4 space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-semibold">Gói Pro</h4>
+                  <Badge className="gradient-primary">Phổ biến</Badge>
+                </div>
+                <p className="text-2xl font-bold">$9.99<span className="text-sm font-normal text-muted-foreground">/tháng</span></p>
+                <ul className="text-sm space-y-1">
+                  <li>• 50 GB dung lượng lưu trữ</li>
+                  <li>• Tải lên file không giới hạn</li>
+                  <li>• Hỗ trợ ưu tiên</li>
+                  <li>• Sao lưu tự động</li>
+                </ul>
+              </div>
+              <div className="border rounded-lg p-4 space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-semibold">Gói Enterprise</h4>
+                  <Badge variant="outline">Cao cấp</Badge>
+                </div>
+                <p className="text-2xl font-bold">$29.99<span className="text-sm font-normal text-muted-foreground">/tháng</span></p>
+                <ul className="text-sm space-y-1">
+                  <li>• 200 GB dung lượng lưu trữ</li>
+                  <li>• Tất cả tính năng Pro</li>
+                  <li>• API access</li>
+                  <li>• Hỗ trợ 24/7</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>
+              Hủy
+            </Button>
+            <Button className="gradient-primary" onClick={() => {
+              setShowUpgradeDialog(false);
+              setSuccess('Chức năng thanh toán sẽ được tích hợp trong phiên bản tiếp theo');
+            }}>
+              Nâng cấp ngay
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cleanup Files Dialog */}
+      <Dialog open={showCleanupDialog} onOpenChange={setShowCleanupDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Dọn dẹp file
+            </DialogTitle>
+            <DialogDescription>
+              Tìm và xóa các file trùng lặp, file tạm thời để giải phóng dung lượng.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <input type="checkbox" id="duplicates" className="rounded" />
+                <Label htmlFor="duplicates">Tìm file trùng lặp</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input type="checkbox" id="temp" className="rounded" />
+                <Label htmlFor="temp">Xóa file tạm thời</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input type="checkbox" id="empty" className="rounded" />
+                <Label htmlFor="empty">Xóa thư mục trống</Label>
+              </div>
+            </div>
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Thao tác này không thể hoàn tác. Hãy đảm bảo bạn đã sao lưu dữ liệu quan trọng.
+              </AlertDescription>
+            </Alert>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCleanupDialog(false)}>
+              Hủy
+            </Button>
+            <Button className="gradient-primary" onClick={() => {
+              setShowCleanupDialog(false);
+              setSuccess('Chức năng dọn dẹp file sẽ được phát triển trong phiên bản tiếp theo');
+            }}>
+              Bắt đầu dọn dẹp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lock Account Dialog */}
+      <Dialog open={showLockAccountDialog} onOpenChange={setShowLockAccountDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Lock className="h-5 w-5" />
+              Khóa tài khoản
+            </DialogTitle>
+            <DialogDescription>
+              Khóa tài khoản sẽ ngăn bạn đăng nhập và truy cập dữ liệu. Bạn có thể mở khóa sau.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Tài khoản sẽ bị khóa ngay lập tức. Bạn sẽ không thể đăng nhập cho đến khi mở khóa.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <Label htmlFor="lockReason">Lý do khóa tài khoản (tùy chọn)</Label>
+              <Input 
+                id="lockReason"
+                placeholder="Nhập lý do khóa tài khoản..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLockAccountDialog(false)}>
+              Hủy
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                setShowLockAccountDialog(false);
+                setSuccess('Chức năng khóa tài khoản sẽ được phát triển trong phiên bản tiếp theo');
+              }}
+            >
+              Khóa tài khoản
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete All Data Dialog */}
+      <Dialog open={showDeleteDataDialog} onOpenChange={setShowDeleteDataDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Database className="h-5 w-5" />
+              Xóa tất cả dữ liệu
+            </DialogTitle>
+            <DialogDescription>
+              Thao tác này sẽ xóa vĩnh viễn tất cả files, folders và dữ liệu của bạn.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Cảnh báo:</strong> Thao tác này không thể hoàn tác! Tất cả dữ liệu sẽ bị xóa vĩnh viễn.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <Label htmlFor="confirmDelete">Nhập "XÓA TẤT CẢ" để xác nhận</Label>
+              <Input 
+                id="confirmDelete"
+                placeholder="XÓA TẤT CẢ"
+                className="uppercase"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDataDialog(false)}>
+              Hủy
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                setShowDeleteDataDialog(false);
+                setSuccess('Chức năng xóa dữ liệu sẽ được phát triển trong phiên bản tiếp theo');
+              }}
+            >
+              Xóa tất cả dữ liệu
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

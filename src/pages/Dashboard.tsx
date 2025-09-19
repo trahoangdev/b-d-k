@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
-import { fileApi, authApi, File as ApiFile } from "@/services/api";
+import { fileApi, authApi, folderApi, File as ApiFile, Folder } from "@/services/api";
 import { 
   Upload, 
   Database, 
@@ -27,12 +27,14 @@ import {
 
 interface DashboardStats {
   totalFiles: number;
+  totalFolders: number;
   totalSize: number;
   recentFiles: ApiFile[];
-  userStats: {
-    fileCount: number;
-    folderCount: number;
-    totalSize: number;
+  storageByType: {
+    documents: { size: number; count: number };
+    images: { size: number; count: number };
+    videos: { size: number; count: number };
+    others: { size: number; count: number };
   };
 }
 
@@ -54,20 +56,55 @@ const Dashboard = () => {
       setLoading(true);
       setError('');
       
-      const [profileResponse, filesResponse] = await Promise.all([
+      const [profileResponse, filesResponse, foldersResponse] = await Promise.all([
         authApi.getProfile(),
-        fileApi.getFiles()
+        fileApi.getFiles(),
+        folderApi.getFolders()
       ]);
 
-      if (profileResponse.success && filesResponse.success) {
-        const userStats = { fileCount: 0, folderCount: 0, totalSize: 0 };
+      if (profileResponse.success && filesResponse.success && foldersResponse.success) {
         const files = filesResponse.data?.files || [];
+        const folders = foldersResponse.data?.folders || [];
+        
+        // Calculate total size
+        const totalSize = files.reduce((sum, file) => sum + parseInt(file.size), 0);
+        
+        // Categorize files by type
+        const storageByType = {
+          documents: { size: 0, count: 0 },
+          images: { size: 0, count: 0 },
+          videos: { size: 0, count: 0 },
+          others: { size: 0, count: 0 }
+        };
+
+        files.forEach(file => {
+          const size = parseInt(file.size);
+          const mimeType = file.mimeType?.toLowerCase() || '';
+          
+          if (mimeType.includes('image/')) {
+            storageByType.images.size += size;
+            storageByType.images.count += 1;
+          } else if (mimeType.includes('video/')) {
+            storageByType.videos.size += size;
+            storageByType.videos.count += 1;
+          } else if (mimeType.includes('application/pdf') || 
+                     mimeType.includes('text/') || 
+                     mimeType.includes('application/msword') ||
+                     mimeType.includes('application/vnd.openxmlformats')) {
+            storageByType.documents.size += size;
+            storageByType.documents.count += 1;
+          } else {
+            storageByType.others.size += size;
+            storageByType.others.count += 1;
+          }
+        });
         
         setStats({
           totalFiles: files.length,
-          totalSize: userStats.totalSize,
+          totalFolders: folders.length,
+          totalSize,
           recentFiles: files.slice(0, 5),
-          userStats
+          storageByType
         });
       }
     } catch (error) {
@@ -114,7 +151,7 @@ const Dashboard = () => {
     },
     {
       title: "Thư mục",
-      value: stats ? stats.userStats.folderCount.toLocaleString() : "0",
+      value: stats ? stats.totalFolders.toLocaleString() : "0",
       change: "+5%",
       icon: Users,
       trend: "up"
@@ -164,6 +201,14 @@ const Dashboard = () => {
         </div>
         <div className="flex gap-3">
           <Button 
+            variant="outline" 
+            className="hover-glow"
+            onClick={loadDashboardData}
+          >
+            <Activity className="h-4 w-4 mr-2" />
+            Làm mới
+          </Button>
+          <Button 
             className="gradient-primary hover-glow"
             onClick={() => navigate('/explorer')}
           >
@@ -203,6 +248,100 @@ const Dashboard = () => {
         ))}
       </div>
 
+      {/* Additional Stats */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="card-modern">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Thống kê file
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Tài liệu:</span>
+                  <span className="font-medium">{stats.storageByType.documents.count}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Hình ảnh:</span>
+                  <span className="font-medium">{stats.storageByType.images.count}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Video:</span>
+                  <span className="font-medium">{stats.storageByType.videos.count}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Khác:</span>
+                  <span className="font-medium">{stats.storageByType.others.count}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-modern">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HardDrive className="h-5 w-5" />
+                Dung lượng theo loại
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Tài liệu:</span>
+                  <span className="font-medium">{formatFileSize(stats.storageByType.documents.size)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Hình ảnh:</span>
+                  <span className="font-medium">{formatFileSize(stats.storageByType.images.size)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Video:</span>
+                  <span className="font-medium">{formatFileSize(stats.storageByType.videos.size)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Khác:</span>
+                  <span className="font-medium">{formatFileSize(stats.storageByType.others.size)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-modern">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Tổng quan hệ thống
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Tổng file:</span>
+                  <span className="font-medium">{stats.totalFiles}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Tổng thư mục:</span>
+                  <span className="font-medium">{stats.totalFolders}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Dung lượng:</span>
+                  <span className="font-medium">{formatFileSize(stats.totalSize)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Trung bình/file:</span>
+                  <span className="font-medium">
+                    {stats.totalFiles > 0 ? formatFileSize(Math.floor(stats.totalSize / stats.totalFiles)) : '0 Bytes'}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Storage Usage */}
@@ -215,45 +354,75 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Tài liệu (45%)</span>
-                  <span>1.08 TB</span>
+              {stats && stats.totalSize > 0 ? (
+                <>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Tài liệu ({stats.storageByType.documents.count} files)</span>
+                      <span>{formatFileSize(stats.storageByType.documents.size)}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div 
+                        className="gradient-primary h-2 rounded-full" 
+                        style={{ 
+                          width: `${stats.totalSize > 0 ? (stats.storageByType.documents.size / stats.totalSize * 100) : 0}%` 
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Hình ảnh ({stats.storageByType.images.count} files)</span>
+                      <span>{formatFileSize(stats.storageByType.images.size)}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full" 
+                        style={{ 
+                          width: `${stats.totalSize > 0 ? (stats.storageByType.images.size / stats.totalSize * 100) : 0}%` 
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Video ({stats.storageByType.videos.count} files)</span>
+                      <span>{formatFileSize(stats.storageByType.videos.size)}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-orange-500 h-2 rounded-full" 
+                        style={{ 
+                          width: `${stats.totalSize > 0 ? (stats.storageByType.videos.size / stats.totalSize * 100) : 0}%` 
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Khác ({stats.storageByType.others.count} files)</span>
+                      <span>{formatFileSize(stats.storageByType.others.size)}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div 
+                        className="bg-green-500 h-2 rounded-full" 
+                        style={{ 
+                          width: `${stats.totalSize > 0 ? (stats.storageByType.others.size / stats.totalSize * 100) : 0}%` 
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <HardDrive className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Chưa có dữ liệu</p>
+                  <p className="text-sm">Tải lên file để xem thống kê</p>
                 </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div className="gradient-primary h-2 rounded-full" style={{ width: "45%" }}></div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Hình ảnh (30%)</span>
-                  <span>720 GB</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div className="bg-info h-2 rounded-full" style={{ width: "30%" }}></div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Video (20%)</span>
-                  <span>480 GB</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div className="bg-warning h-2 rounded-full" style={{ width: "20%" }}></div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Khác (5%)</span>
-                  <span>120 GB</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div className="bg-success h-2 rounded-full" style={{ width: "5%" }}></div>
-                </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -318,16 +487,16 @@ const Dashboard = () => {
                   <div className="flex items-center gap-3">
                     <File className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="text-sm font-medium">{file.original_name}</p>
+                      <p className="text-sm font-medium">{file.originalName}</p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{formatFileSize(parseInt(file.size))}</span>
                         <span>•</span>
-                        <span>{file.mime_type}</span>
+                        <span>{file.mimeType}</span>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{formatDate(file.uploaded_at)}</span>
+                    <span className="text-xs text-muted-foreground">{formatDate(file.uploadedAt)}</span>
                     <Button 
                       size="sm" 
                       variant="ghost"

@@ -1,18 +1,6 @@
 const API_BASE_URL = 'http://localhost:3001/api';
 
 // Types
-export interface User {
-  id: string;
-  email: string;
-  username: string;
-  first_name: string;
-  last_name: string;
-  avatar: string | null;
-  role: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface File {
   id: string;
@@ -34,6 +22,18 @@ export interface Folder {
   description?: string;
   parentId?: string;
   userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  role: 'USER' | 'EDITOR' | 'ADMIN';
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -121,6 +121,27 @@ class ApiClient {
 
   async getProfile(): Promise<ApiResponse<{ user: User }>> {
     return this.request<{ user: User }>('/auth/profile');
+  }
+
+  async updateProfile(profileData: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+  }): Promise<ApiResponse<{ user: User }>> {
+    return this.request<{ user: User }>('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData)
+    });
+  }
+
+  async changePassword(passwordData: {
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<ApiResponse> {
+    return this.request('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify(passwordData)
+    });
   }
 
   // File methods
@@ -230,6 +251,51 @@ class ApiClient {
     });
   }
 
+  // User management methods
+  async getUsers(): Promise<ApiResponse<{ users: User[] }>> {
+    return this.request<{ users: User[] }>('/users');
+  }
+
+  async createUser(userData: {
+    email: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+    role?: 'USER' | 'EDITOR' | 'ADMIN';
+  }): Promise<ApiResponse<{ user: User }>> {
+    return this.request<{ user: User }>('/users', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  }
+
+  async updateUser(userId: string, userData: {
+    email?: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    role?: 'USER' | 'EDITOR' | 'ADMIN';
+    isActive?: boolean;
+  }): Promise<ApiResponse<{ user: User }>> {
+    return this.request<{ user: User }>(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData)
+    });
+  }
+
+  async deleteUser(userId: string): Promise<ApiResponse> {
+    return this.request(`/users/${userId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async toggleUserStatus(userId: string): Promise<ApiResponse<{ user: User }>> {
+    return this.request<{ user: User }>(`/users/${userId}/toggle-status`, {
+      method: 'PATCH'
+    });
+  }
+
   // Folder methods
   async getFolders(): Promise<ApiResponse<{ folders: Folder[] }>> {
     return this.request<{ folders: Folder[] }>('/folders');
@@ -253,6 +319,21 @@ class ApiClient {
     return this.request(`/folders/${id}`, { method: 'DELETE' });
   }
 
+  // Storage stats
+  async getStorageStats(): Promise<ApiResponse<{ 
+    totalFiles: number; 
+    totalFolders: number; 
+    totalSize: string; 
+    storageByType: { type: string; count: number; size: string }[];
+  }>> {
+    return this.request<{ 
+      totalFiles: number; 
+      totalFolders: number; 
+      totalSize: string; 
+      storageByType: { type: string; count: number; size: string }[];
+    }>('/files/stats');
+  }
+
   // Health check
   async healthCheck(): Promise<ApiResponse> {
     return this.request('/health');
@@ -267,6 +348,10 @@ export const authApi = {
   login: (credentials: LoginRequest) => apiClient.login(credentials),
   logout: () => apiClient.logout(),
   getProfile: () => apiClient.getProfile(),
+  updateProfile: (profileData: { firstName?: string; lastName?: string; phone?: string }) => 
+    apiClient.updateProfile(profileData),
+  changePassword: (passwordData: { currentPassword: string; newPassword: string }) => 
+    apiClient.changePassword(passwordData),
 };
 
 export const fileApi = {
@@ -277,6 +362,7 @@ export const fileApi = {
   downloadFile: (fileId: string) => apiClient.downloadFile(fileId),
   deleteFile: (fileId: string) => apiClient.deleteFile(fileId),
   moveFile: (fileId: string, folderId: string | null) => apiClient.moveFile(fileId, folderId),
+  getStorageStats: () => apiClient.getStorageStats(),
 };
 
 export const folderApi = {
@@ -287,6 +373,28 @@ export const folderApi = {
     apiClient.updateFolder(id, name, description),
   deleteFolder: (id: string) => 
     apiClient.deleteFolder(id),
+};
+
+export const userApi = {
+  getUsers: () => apiClient.getUsers(),
+  createUser: (userData: {
+    email: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+    role?: 'USER' | 'EDITOR' | 'ADMIN';
+  }) => apiClient.createUser(userData),
+  updateUser: (userId: string, userData: {
+    email?: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    role?: 'USER' | 'EDITOR' | 'ADMIN';
+    isActive?: boolean;
+  }) => apiClient.updateUser(userId, userData),
+  deleteUser: (userId: string) => apiClient.deleteUser(userId),
+  toggleUserStatus: (userId: string) => apiClient.toggleUserStatus(userId),
 };
 
 export const systemApi = {

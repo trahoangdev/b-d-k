@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
+import { userApi, User as ApiUser } from "@/services/api";
 import { 
   Users as UsersIcon, 
   UserPlus,
@@ -34,34 +35,24 @@ import {
   XCircle
 } from "lucide-react";
 
-interface User {
-  id: string;
-  email: string;
-  username: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// Use ApiUser interface from services/api.ts
 
 const Users = () => {
   const { user: currentUser, isAuthenticated } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<ApiUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddUser, setShowAddUser] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<ApiUser | null>(null);
   const [newUser, setNewUser] = useState({
     email: '',
     username: '',
     firstName: '',
     lastName: '',
     password: '',
-    role: 'USER'
+    role: 'USER' as 'USER' | 'EDITOR' | 'ADMIN'
   });
 
   useEffect(() => {
@@ -75,26 +66,13 @@ const Users = () => {
       setLoading(true);
       setError('');
       setSuccess('');
-      // TODO: Implement load users API
-      // const response = await userApi.getUsers();
-      // if (response.success) {
-      //   setUsers(response.data.users);
-      // }
       
-      // Mock data for now
-      setUsers([
-        {
-          id: "user_1",
-          email: "admin@bigdatakeeper.com",
-          username: "admin",
-          first_name: "Admin",
-          last_name: "User",
-          role: "ADMIN",
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ]);
+      const response = await userApi.getUsers();
+      if (response.success && response.data) {
+        setUsers(response.data.users);
+      } else {
+        setError('Không thể tải danh sách người dùng');
+      }
     } catch (error) {
       setError('Không thể tải danh sách người dùng');
       console.error('Load users error:', error);
@@ -111,59 +89,58 @@ const Users = () => {
         return;
       }
 
-      // TODO: Implement add user API
-      // const response = await userApi.createUser(newUser);
-      // if (response.success) {
-      //   await loadUsers();
-      //   setShowAddUser(false);
-      //   setNewUser({ email: '', username: '', firstName: '', lastName: '', password: '', role: 'USER' });
-      // }
-      
-      // Mock success for now
-      setSuccess(`Người dùng "${newUser.firstName} ${newUser.lastName}" đã được thêm thành công!`);
-      setShowAddUser(false);
-      setNewUser({ email: '', username: '', firstName: '', lastName: '', password: '', role: 'USER' });
-      await loadUsers();
+      const response = await userApi.createUser(newUser);
+      if (response.success) {
+        setSuccess(`Người dùng "${newUser.firstName} ${newUser.lastName}" đã được thêm thành công!`);
+        setShowAddUser(false);
+        setNewUser({ email: '', username: '', firstName: '', lastName: '', password: '', role: 'USER' as 'USER' | 'EDITOR' | 'ADMIN' });
+        await loadUsers();
+      } else {
+        setError(response.message || 'Không thể thêm người dùng');
+      }
     } catch (error) {
       setError('Không thể thêm người dùng');
+      console.error('Add user error:', error);
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
     if (window.confirm('Bạn có chắc muốn xóa người dùng này?')) {
       try {
-        // TODO: Implement delete user API
-        // await userApi.deleteUser(userId);
-        // await loadUsers();
-        
-        // Mock success for now
-        setSuccess('Người dùng đã được xóa thành công!');
-        await loadUsers();
+        const response = await userApi.deleteUser(userId);
+        if (response.success) {
+          setSuccess('Người dùng đã được xóa thành công!');
+          await loadUsers();
+        } else {
+          setError(response.message || 'Không thể xóa người dùng');
+        }
       } catch (error) {
         setError('Không thể xóa người dùng');
+        console.error('Delete user error:', error);
       }
     }
   };
 
   const handleToggleUserStatus = async (userId: string, currentStatus: boolean) => {
     try {
-      // TODO: Implement toggle user status API
-      // await userApi.toggleUserStatus(userId, !currentStatus);
-      // await loadUsers();
-      
-      // Mock success for now
-      const newStatus = !currentStatus;
-      setSuccess(`Người dùng đã được ${newStatus ? 'kích hoạt' : 'vô hiệu hóa'} thành công!`);
-      await loadUsers();
+      const response = await userApi.toggleUserStatus(userId);
+      if (response.success) {
+        const newStatus = !currentStatus;
+        setSuccess(`Người dùng đã được ${newStatus ? 'kích hoạt' : 'vô hiệu hóa'} thành công!`);
+        await loadUsers();
+      } else {
+        setError(response.message || 'Không thể thay đổi trạng thái người dùng');
+      }
     } catch (error) {
       setError('Không thể thay đổi trạng thái người dùng');
+      console.error('Toggle user status error:', error);
     }
   };
 
   const filteredUsers = users.filter(user =>
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
+    `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (!isAuthenticated || currentUser?.role !== 'ADMIN') {
@@ -294,7 +271,7 @@ const Users = () => {
                 </div>
                 <div>
                   <Label htmlFor="role">Vai trò</Label>
-                  <Select value={newUser.role} onValueChange={(value) => setNewUser({...newUser, role: value})}>
+                  <Select value={newUser.role} onValueChange={(value) => setNewUser({...newUser, role: value as 'USER' | 'EDITOR' | 'ADMIN'})}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -382,11 +359,11 @@ const Users = () => {
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                           <span className="text-sm font-medium">
-                            {user.first_name[0]}{user.last_name[0]}
+                            {user.firstName[0]}{user.lastName[0]}
                           </span>
                         </div>
                         <div>
-                          <div className="font-medium">{user.first_name} {user.last_name}</div>
+                          <div className="font-medium">{user.firstName} {user.lastName}</div>
                           <div className="text-sm text-muted-foreground">
                             {user.email}
                           </div>
@@ -403,22 +380,22 @@ const Users = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className={`h-2 w-2 rounded-full ${getStatusIndicator(user.is_active)}`} />
+                        <div className={`h-2 w-2 rounded-full ${getStatusIndicator(user.isActive)}`} />
                         <span className="capitalize">
-                          {user.is_active ? 'Hoạt động' : 'Không hoạt động'}
+                          {user.isActive ? 'Hoạt động' : 'Không hoạt động'}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>{formatDate(user.created_at)}</TableCell>
+                    <TableCell>{formatDate(user.createdAt)}</TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-2">
                         <Button 
                           variant="ghost" 
                           size="icon" 
                           className="hover-glow"
-                          onClick={() => handleToggleUserStatus(user.id, user.is_active)}
+                          onClick={() => handleToggleUserStatus(user.id, user.isActive)}
                         >
-                          {user.is_active ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                          {user.isActive ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
                         </Button>
                         <Button 
                           variant="ghost" 

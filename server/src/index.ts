@@ -10,6 +10,7 @@ import { connectDatabases, disconnectDatabases } from './database/connection';
 import authRoutes from './routes/auth.routes';
 import fileRoutes from './routes/file.routes';
 import folderRoutes from './routes/folder.routes';
+import userRoutes from './routes/user.routes';
 import { ApiResponse } from './types';
 
 // Load environment variables
@@ -94,6 +95,7 @@ app.get('/test/minio', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/folders', folderRoutes);
+app.use('/api/users', userRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

@@ -13,6 +13,7 @@ router.post('/login', validate(loginSchema), AuthController.login);
 // Protected routes
 router.get('/profile', authenticateToken, AuthController.getProfile);
 router.put('/profile', authenticateToken, AuthController.updateProfile);
+router.post('/change-password', authenticateToken, AuthController.changePassword);
 router.post('/logout', authenticateToken, AuthController.logout);
 
 export default router;

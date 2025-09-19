@@ -217,6 +217,80 @@ export class AuthController {
     }
   }
 
+  // Change password
+  static async changePassword(req: AuthenticatedRequest, res: Response<ApiResponse>): Promise<Response<ApiResponse>> {
+    try {
+      const userId = req.user?.id;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+      }
+
+      // Validate required fields
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'Current password and new password are required',
+        });
+      }
+
+      // Validate new password length
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: 'New password must be at least 6 characters long',
+        });
+      }
+
+      // Get user with password
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+      }
+
+      // Verify current password
+      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isCurrentPasswordValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Current password is incorrect',
+        });
+      }
+
+      // Hash new password
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update password
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          password: hashedNewPassword,
+        }
+      });
+
+      return res.json({
+        success: true,
+        message: 'Password changed successfully',
+      });
+    } catch (error) {
+      console.error('Change password error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to change password',
+      });
+    }
+  }
+
   // Logout (client-side token removal)
   static async logout(req: Request, res: Response<ApiResponse>): Promise<Response<ApiResponse>> {
     return res.json({

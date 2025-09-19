@@ -525,4 +525,78 @@ export class FileController {
       });
     }
   }
+
+  // Get storage statistics
+  static async getStorageStats(req: AuthenticatedRequest, res: Response<ApiResponse>): Promise<Response<ApiResponse>> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'User not authenticated' });
+      }
+
+      // Get total files and folders
+      const [totalFiles, totalFolders, totalSizeResult] = await Promise.all([
+        prisma.file.count({ where: { userId } }),
+        prisma.folder.count({ where: { userId } }),
+        prisma.file.aggregate({
+          where: { userId },
+          _sum: { size: true }
+        })
+      ]);
+
+      const totalSize = totalSizeResult._sum.size || BigInt(0);
+
+      // Get storage by file type
+      const filesByType = await prisma.file.groupBy({
+        by: ['mimeType'],
+        where: { userId },
+        _count: { id: true },
+        _sum: { size: true }
+      });
+
+      const storageByType = filesByType.map(item => {
+        const mimeType = item.mimeType;
+        let type = 'Other';
+        
+        if (mimeType.startsWith('image/')) type = 'Images';
+        else if (mimeType.startsWith('video/')) type = 'Videos';
+        else if (mimeType.startsWith('audio/')) type = 'Audio';
+        else if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('text')) type = 'Documents';
+        else if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z')) type = 'Archives';
+
+        return {
+          type,
+          count: item._count.id,
+          size: (item._sum.size || BigInt(0)).toString()
+        };
+      });
+
+      // Group by type and sum
+      const groupedStorage = storageByType.reduce((acc, item) => {
+        const existing = acc.find(x => x.type === item.type);
+        if (existing) {
+          existing.count += item.count;
+          existing.size = (BigInt(existing.size) + BigInt(item.size)).toString();
+        } else {
+          acc.push(item);
+        }
+        return acc;
+      }, [] as { type: string; count: number; size: string }[]);
+
+      return res.json({
+        success: true,
+        message: 'Storage stats retrieved successfully',
+        data: {
+          totalFiles,
+          totalFolders,
+          totalSize: totalSize.toString(),
+          storageByType: groupedStorage
+        }
+      });
+    } catch (error) {
+      console.error('Get storage stats error:', error);
+      return res.status(500).json({ success: false, message: 'Failed to get storage stats' });
+    }
+  }
 }
