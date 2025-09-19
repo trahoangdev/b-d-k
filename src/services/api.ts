@@ -17,14 +17,25 @@ export interface User {
 export interface File {
   id: string;
   name: string;
-  original_name: string;
+  originalName: string;
   size: string;
-  mime_type: string;
+  mimeType: string;
   extension: string;
   description?: string;
   tags?: string[];
-  is_public: boolean;
-  uploaded_at: string;
+  isPublic: boolean;
+  uploadedAt: string;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  path: string;
+  description?: string;
+  parentId?: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -113,13 +124,23 @@ class ApiClient {
   }
 
   // File methods
-  async getFiles(): Promise<ApiResponse<{ files: File[] }>> {
-    return this.request<{ files: File[] }>('/files');
+  async getFiles(params?: { page?: number; limit?: number; folderId?: string; search?: string }): Promise<ApiResponse<{ files: File[] }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.folderId) queryParams.append('folderId', params.folderId);
+    if (params?.search) queryParams.append('search', params.search);
+    
+    const endpoint = queryParams.toString() ? `/files?${queryParams.toString()}` : '/files';
+    return this.request<{ files: File[] }>(endpoint);
   }
 
-  async uploadFile(file: globalThis.File, onProgress?: (progress: number) => void): Promise<ApiResponse<{ file: File }>> {
+  async uploadFile(file: globalThis.File, onProgress?: (progress: number) => void, folderId?: string): Promise<ApiResponse<{ file: File }>> {
     const formData = new FormData();
     formData.append('file', file as Blob);
+    if (folderId) {
+      formData.append('folderId', folderId);
+    }
 
     const url = `${this.baseURL}/files/upload`;
     
@@ -202,6 +223,36 @@ class ApiClient {
     });
   }
 
+  async moveFile(fileId: string, folderId: string | null): Promise<ApiResponse<{ file: File }>> {
+    return this.request<{ file: File }>(`/files/${fileId}/move`, {
+      method: 'PUT',
+      body: JSON.stringify({ folderId })
+    });
+  }
+
+  // Folder methods
+  async getFolders(): Promise<ApiResponse<{ folders: Folder[] }>> {
+    return this.request<{ folders: Folder[] }>('/folders');
+  }
+
+  async createFolder(name: string, description?: string, parentId?: string): Promise<ApiResponse<{ folder: Folder }>> {
+    return this.request<{ folder: Folder }>('/folders', {
+      method: 'POST',
+      body: JSON.stringify({ name, description, parentId })
+    });
+  }
+
+  async updateFolder(id: string, name?: string, description?: string): Promise<ApiResponse<{ folder: Folder }>> {
+    return this.request<{ folder: Folder }>(`/folders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, description })
+    });
+  }
+
+  async deleteFolder(id: string): Promise<ApiResponse> {
+    return this.request(`/folders/${id}`, { method: 'DELETE' });
+  }
+
   // Health check
   async healthCheck(): Promise<ApiResponse> {
     return this.request('/health');
@@ -219,11 +270,23 @@ export const authApi = {
 };
 
 export const fileApi = {
-  getFiles: () => apiClient.getFiles(),
-  uploadFile: (file: globalThis.File, onProgress?: (progress: number) => void) => 
-    apiClient.uploadFile(file, onProgress),
+  getFiles: (params?: { page?: number; limit?: number; folderId?: string; search?: string }) => 
+    apiClient.getFiles(params),
+  uploadFile: (file: globalThis.File, onProgress?: (progress: number) => void, folderId?: string) => 
+    apiClient.uploadFile(file, onProgress, folderId),
   downloadFile: (fileId: string) => apiClient.downloadFile(fileId),
   deleteFile: (fileId: string) => apiClient.deleteFile(fileId),
+  moveFile: (fileId: string, folderId: string | null) => apiClient.moveFile(fileId, folderId),
+};
+
+export const folderApi = {
+  getFolders: () => apiClient.getFolders(),
+  createFolder: (name: string, description?: string, parentId?: string) => 
+    apiClient.createFolder(name, description, parentId),
+  updateFolder: (id: string, name?: string, description?: string) => 
+    apiClient.updateFolder(id, name, description),
+  deleteFolder: (id: string) => 
+    apiClient.deleteFolder(id),
 };
 
 export const systemApi = {

@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import { connectDatabases, disconnectDatabases } from './database/connection';
 import authRoutes from './routes/auth.routes';
 import fileRoutes from './routes/file.routes';
+import folderRoutes from './routes/folder.routes';
 import { ApiResponse } from './types';
 
 // Load environment variables
@@ -69,9 +70,30 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// MinIO test endpoint
+app.get('/test/minio', async (req, res) => {
+  try {
+    const { minioService } = await import('./services/minio.service');
+    const storageUsage = await minioService.getStorageUsage();
+    
+    res.json({
+      success: true,
+      message: 'MinIO connection successful',
+      data: storageUsage,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'MinIO connection failed',
+      error: (error as Error).message,
+    });
+  }
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/folders', folderRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

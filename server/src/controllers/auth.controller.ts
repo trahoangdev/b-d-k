@@ -158,7 +158,7 @@ export class AuthController {
           stats: {
             fileCount,
             folderCount,
-            totalSize: totalSize._sum.size || 0,
+            totalSize: totalSize._sum.size ? totalSize._sum.size.toString() : '0',
           },
         },
       });

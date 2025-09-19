@@ -26,6 +26,7 @@ router.post('/upload-multiple', upload.array('files', 10), validateFiles, FileCo
 router.get('/', FileController.getFiles);
 router.get('/:id', FileController.getFile);
 router.put('/:id', validate(updateFileSchema), FileController.updateFile);
+router.put('/:id/move', FileController.moveFile);
 router.delete('/:id', FileController.deleteFile);
 
 // File download route

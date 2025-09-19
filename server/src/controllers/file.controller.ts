@@ -56,18 +56,24 @@ export class FileController {
         },
       });
 
-        return res.status(201).json({
-          success: true,
-          message: 'File uploaded successfully',
-          data: { file },
-        });
-      } catch (error) {
-        console.error('Upload file error:', error);
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to upload file',
-        });
-      }
+      // Convert BigInt to string for JSON serialization
+      const serializedFile = {
+        ...file,
+        size: file.size.toString(),
+      };
+
+      return res.status(201).json({
+        success: true,
+        message: 'File uploaded successfully',
+        data: { file: serializedFile },
+      });
+    } catch (error) {
+      console.error('Upload file error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload file',
+      });
+    }
   }
 
   // Upload multiple files
@@ -125,14 +131,20 @@ export class FileController {
         }
       }
 
-        return res.status(201).json({
+      // Convert BigInt to string for JSON serialization
+      const serializedFiles = uploadedFiles.map(file => ({
+        ...file,
+        size: file.size.toString(),
+      }));
+
+      return res.status(201).json({
         success: true,
         message: `${uploadedFiles.length} files uploaded successfully`,
-        data: { files: uploadedFiles },
+        data: { files: serializedFiles },
       });
     } catch (error) {
       console.error('Upload files error:', error);
-        return res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Failed to upload files',
       });
@@ -142,10 +154,12 @@ export class FileController {
   // Get user files
   static async getFiles(req: AuthenticatedRequest, res: Response<ApiResponse>): Promise<Response<ApiResponse>> {
     try {
+      console.log('🔍 getFiles called with userId:', req.user?.id);
       const userId = req.user?.id;
       const { page = 1, limit = 20, folderId, search, sortBy = 'uploadedAt', sortOrder = 'desc' } = req.query;
 
       if (!userId) {
+        console.log('❌ No userId found');
         return res.status(401).json({
           success: false,
           message: 'User not authenticated',
@@ -167,23 +181,38 @@ export class FileController {
         ];
       }
 
+      console.log('🔍 Querying files with where clause:', where);
+      
+      // Fix orderBy - use proper field name and type
+      const orderByField = sortBy === 'uploadedAt' ? 'uploadedAt' : 'uploadedAt';
+      const orderByClause = { [orderByField]: sortOrder as 'asc' | 'desc' };
+      
+      console.log('🔍 Order by clause:', orderByClause);
+      
       const [files, total] = await Promise.all([
         prisma.file.findMany({
           where,
           skip,
           take: Number(limit),
-          orderBy: { [sortBy as string]: sortOrder },
+          orderBy: orderByClause,
           include: {
             folder: true,
           },
         }),
         prisma.file.count({ where }),
       ]);
+      console.log('📁 Found files:', files.length, 'total:', total);
+
+      // Convert BigInt to string for JSON serialization
+      const serializedFiles = files.map(file => ({
+        ...file,
+        size: file.size.toString(),
+      }));
 
       return res.json({
         success: true,
         message: 'Files retrieved successfully',
-        data: { files },
+        data: { files: serializedFiles },
         pagination: {
           page: Number(page),
           limit: Number(limit),
@@ -193,7 +222,7 @@ export class FileController {
       });
     } catch (error) {
       console.error('Get files error:', error);
-        return res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Failed to retrieve files',
       });
@@ -241,14 +270,20 @@ export class FileController {
         });
       }
 
+      // Convert BigInt to string for JSON serialization
+      const serializedFile = {
+        ...file,
+        size: file.size.toString(),
+      };
+
       return res.json({
         success: true,
         message: 'File retrieved successfully',
-        data: { file },
+        data: { file: serializedFile },
       });
     } catch (error) {
       console.error('Get file error:', error);
-        return res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Failed to retrieve file',
       });
@@ -311,7 +346,7 @@ export class FileController {
       });
     } catch (error) {
       console.error('Download file error:', error);
-        return res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Failed to download file',
       });
@@ -356,16 +391,92 @@ export class FileController {
         },
       });
 
+      // Convert BigInt to string for JSON serialization
+      const serializedFile = {
+        ...updatedFile,
+        size: updatedFile.size.toString(),
+      };
+
       return res.json({
         success: true,
         message: 'File updated successfully',
-        data: { file: updatedFile },
+        data: { file: serializedFile },
       });
     } catch (error) {
       console.error('Update file error:', error);
-        return res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Failed to update file',
+      });
+    }
+  }
+
+  // Move file to folder
+  static async moveFile(req: AuthenticatedRequest, res: Response<ApiResponse>): Promise<Response<ApiResponse>> {
+    try {
+      const userId = req.user?.id;
+      const { id } = req.params;
+      const { folderId } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+      }
+
+      const file = await prisma.file.findFirst({
+        where: { id, userId },
+      });
+
+      if (!file) {
+        return res.status(404).json({
+          success: false,
+          message: 'File not found',
+        });
+      }
+
+      // Check if target folder exists and belongs to user
+      if (folderId) {
+        const folder = await prisma.folder.findFirst({
+          where: { id: folderId, userId },
+        });
+
+        if (!folder) {
+          return res.status(400).json({
+            success: false,
+            message: 'Target folder not found',
+          });
+        }
+      }
+
+      // Update file folder
+      const updatedFile = await prisma.file.update({
+        where: { id },
+        data: {
+          folderId: folderId || null,
+        },
+        include: {
+          folder: true,
+        },
+      });
+
+      // Convert BigInt to string for JSON serialization
+      const serializedFile = {
+        ...updatedFile,
+        size: updatedFile.size.toString(),
+      };
+
+      return res.json({
+        success: true,
+        message: 'File moved successfully',
+        data: { file: serializedFile },
+      });
+    } catch (error) {
+      console.error('Move file error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to move file',
       });
     }
   }
@@ -408,7 +519,7 @@ export class FileController {
       });
     } catch (error) {
       console.error('Delete file error:', error);
-        return res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Failed to delete file',
       });
